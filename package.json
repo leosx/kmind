@@ -1,0 +1,30 @@
+{
+    "name": "kmind",
+    "version": "1.0.0",
+    "description": "知识分享网站使用的思维导图",
+    "main": "./src/ts/index.ts",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "dev": "webpack --config ./build/dev.webpack.config.js",
+        "prod": "webpack --config ./build/prod.webpack.config.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/leosx/kmind.git"
+    },
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/leosx/kmind/issues"
+    },
+    "homepage": "https://github.com/leosx/kmind#readme",
+    "devDependencies": {
+        "css-loader": "^6.6.0",
+        "html-webpack-plugin": "^5.5.0",
+        "ts-loader": "^9.2.6",
+        "typescript": "^4.5.5",
+        "webpack": "^5.69.1",
+        "webpack-cli": "^4.9.2",
+        "webpack-merge": "^5.8.0"
+    }
+}
