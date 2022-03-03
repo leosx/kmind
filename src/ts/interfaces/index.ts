@@ -8,6 +8,7 @@ export interface ITag {
  * mind的节点接口，表示数据格式
  */
 export interface IMindNode {
+    [key: string]: any
     // 数据ID，方便以后查找
     Id: string | number
     // 父级ID，方便后续查找
@@ -56,5 +57,5 @@ export interface IEngine {
      * 将数据渲染成mind节点
      * @param data 待渲染的数据
      */
-    RenderBody(data: Array<IMindNode>): Result
+    RenderBody(data: Array<IMindNode>): Promise<Result>
 }

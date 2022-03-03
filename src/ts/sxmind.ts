@@ -17,7 +17,7 @@ export default class SXMind {
         this.init()
     }
 
-    private init() {
+    private async init(): Promise<void> {
         let rootarrary = document.querySelectorAll(this.rootSelector)
         if (rootarrary.length <= 0) {
             throw new Error("未能找到根元素")
@@ -45,7 +45,7 @@ export default class SXMind {
         }
 
         if (this.options.Data) {
-            this.LoadData(this.options.Data)
+            await this.LoadData(this.options.Data)
         }
     }
 
@@ -53,9 +53,9 @@ export default class SXMind {
      * 初始化数据
      * @param data 数据
      */
-    public LoadData(data: Array<IMindNode>): void {
+    public async LoadData(data: Array<IMindNode>): Promise<void> {
         let engine = ef.GetEngine(this.rootElement!, this.svgRoot!, this.options)
         engine.RenderStyle()
-        engine.RenderBody(data)
+        await engine.RenderBody(data)
     }
 }
