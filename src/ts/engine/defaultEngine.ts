@@ -67,8 +67,9 @@ export class DefaultEngine implements ifc.IEngine {
     private svgnamespace: string = "http://www.w3.org/2000/svg"
     private renderddata: ifc.IMindNode[]
     private buttondown: number = -1 // 指示鼠标按下去时，是左键、中键还是右键
-    private mousedownxy: MouseXY = { X: 0, Y: 0 }
-    private roottraslatexy: MouseXY = { X: 0, Y: 0 }
+    private mousedownxy: MouseXY = { X: 0, Y: 0 } // 用于平移画布或者移动单个节点时，记录鼠标按下时的初始位置
+    private roottraslatexy: MouseXY = { X: 0, Y: 0 } // 用于平移画布时，记录根节点初始translate信息
+    private nodetranslatexy: MouseXY = { X: 0, Y: 0 } // 用于移动单个节点时，记录此节点的初始translate信息，以便后续计算使用
 
 
     // 用于标识节点区域的key
@@ -101,6 +102,14 @@ export class DefaultEngine implements ifc.IEngine {
         }
         this.grouproot = document.createElementNS(this.svgnamespace, "g")
         this.grouproot.setAttribute("id", "groot");
+        this.svgRoot.onselectstart = () => {
+            // 禁止选择功能
+            return false
+        };
+        this.svgRoot.oncontextmenu = (e) => {
+            // 禁用根元素的右键菜单，也可以在这里自定义右键菜单。
+            e.preventDefault()
+        };
         this.svgRoot.addEventListener("mousedown", (e) => {
             this.buttondown = e.button
             if (e.button == 2) {
@@ -111,21 +120,13 @@ export class DefaultEngine implements ifc.IEngine {
                 this.mousedownxy.Y = e.y
                 this.roottraslatexy.X = 0
                 this.roottraslatexy.Y = 0
-                let groottranslatestr = this.grouproot.getAttribute("transform")
-                if (groottranslatestr) {
-                    let translatexyarray = groottranslatestr.replace("translate(", "").replace(")", "").trim().split(" ")
-                    if (translatexyarray.length == 2) {
-                        this.roottraslatexy.X = Number(translatexyarray[0])
-                        this.roottraslatexy.Y = Number(translatexyarray[1])
-                    }
+                let temptranslate = this.GetElementTranslate(this.grouproot)
+                if (temptranslate) {
+                    this.roottraslatexy = temptranslate
                 }
             }
         });
-        this.svgRoot.addEventListener("mousemove", (e: MouseEvent) => {
-            if (this.buttondown == 2) {
-                this.MoveCanvas(e)
-            }
-        });
+        this.svgRoot.addEventListener("mousemove", this.MoveCanvas.bind(this));
         this.svgRoot.addEventListener("mouseup", (e: MouseEvent) => {
             this.buttondown = -1
             this.mousedownxy.X = -1
@@ -169,6 +170,23 @@ export class DefaultEngine implements ifc.IEngine {
                 return err
             }
         }
+    }
+
+    /**
+     * 获取节点的平移(translate)信息
+     * @param node DOM节点
+     * @returns 节点的translate数据信息
+     */
+    private GetElementTranslate(node: Element): (MouseXY | undefined) {
+        let groottranslatestr = node.getAttribute("transform")
+        if (groottranslatestr) {
+            let translatexyarray = groottranslatestr.replace("translate(", "").replace(")", "").trim().split(" ")
+            if (translatexyarray.length == 2) {
+                return { X: Number(translatexyarray[0]), Y: Number(translatexyarray[1]) }
+            }
+        }
+
+        return undefined
     }
 
     /**
@@ -265,23 +283,65 @@ export class DefaultEngine implements ifc.IEngine {
         }
 
         // 注册事件
-        (gp as HTMLElement).addEventListener("mousedown", (e) => {
+        (contentg as HTMLElement).addEventListener("dblclick", this.NodeDoubleClick.bind(this));
+        (contentg as HTMLElement).addEventListener("mousedown", (e) => {
             this.buttondown = e.button
             this.mousedownxy.X = e.x
             this.mousedownxy.Y = e.y
+            if (e.button == 0) {
+                // 记录节点初始状态下的translate信息
+                let temptranslate = this.GetElementTranslate(gp)
+                if (temptranslate) {
+                    this.nodetranslatexy = temptranslate
+                } else {
+                    this.nodetranslatexy.X = 0
+                    this.nodetranslatexy.Y = 0
+                }
+            }
         });
-        (gp as HTMLElement).addEventListener("mouseup", (e) => {
+        (contentg as HTMLElement).addEventListener("mouseup", (e) => {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
         });
-        (gp as HTMLElement).addEventListener("mousemove", (e) => {
-            if (this.buttondown == -1) {
-                return
-            } else if (this.buttondown == 0) {
-                // 按下了左键，移动此节点，并重回大小
-            }
+        (contentg as HTMLElement).addEventListener("mousemove", e => {
+            this.SingleNodeMove(e, gp)
         });
+    }
+
+    /**
+     * 节点双击事件，进入编辑模式
+     * @param e 鼠标事件参数
+     */
+    private NodeDoubleClick(e: MouseEvent) {
+        // 双击事件，进入编辑模式
+    }
+
+    /**
+     * 单个节点左键拖动事件。拖动的是文本内容区域，移动的是整个节点
+     * @param e 鼠标事件参数
+     * @param movenode 待移动的元素
+     * @returns void
+     */
+    private SingleNodeMove(e: MouseEvent, movenode: Element) {
+        if (this.buttondown != 0) {
+            return
+        }
+
+        let offsetx = e.x - this.mousedownxy.X
+        let offsety = e.y - this.mousedownxy.Y
+        if (Math.abs(offsetx) < 3 || Math.abs(offsety) < 3) {
+            // 移动距离过小则不触发移动
+            return
+        }
+
+        let oldx = this.nodetranslatexy.X
+        let oldy = this.nodetranslatexy.Y
+        let newx = oldx + offsetx
+        let newy = oldy + offsety
+        movenode.setAttribute("transform", `translate( ${newx} ${newy} )`)
+
+        //
     }
 
     /**
