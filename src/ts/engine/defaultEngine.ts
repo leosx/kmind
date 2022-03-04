@@ -1,5 +1,5 @@
 import * as ifc from "../interfaces"
-import {EventEmitter} from 'events';
+import { EventEmitter } from 'events';
 
 /**
  * 节点的数据属性名称
@@ -41,10 +41,15 @@ const NodeContentZonePrefix: string = "ndcontentg_"
 const NodeRightZonePrefix: string = "ndrightg_"
 
 // 默认连线X轴距离
-const DefaultLineWidth: number = 130
+const DefaultLineWidth: number = 100
 
 // 默认同区域两项节点的高度距离
 const DefaultLineHeight: number = 30
+
+interface MouseXY {
+    X: number
+    Y: number
+}
 
 /**
  * 默认的渲染引擎。
@@ -60,7 +65,11 @@ export class DefaultEngine implements ifc.IEngine {
     private connectg: Element | undefined // 连接线分组
     private renderg: Element | undefined // 渲染节点分组
     private svgnamespace: string = "http://www.w3.org/2000/svg"
-    private renderddata:ifc.IMindNode[]
+    private renderddata: ifc.IMindNode[]
+    private buttondown: number = -1 // 指示鼠标按下去时，是左键、中键还是右键
+    private mousedownxy: MouseXY = { X: 0, Y: 0 }
+    private roottraslatexy: MouseXY = { X: 0, Y: 0 }
+
 
     // 用于标识节点区域的key
     private keyNames: NodeKey = {
@@ -91,7 +100,40 @@ export class DefaultEngine implements ifc.IEngine {
             throw new Error("根节点不为空，请核实")
         }
         this.grouproot = document.createElementNS(this.svgnamespace, "g")
-        this.grouproot.setAttribute("id", "groot")
+        this.grouproot.setAttribute("id", "groot");
+        this.svgRoot.addEventListener("mousedown", (e) => {
+            this.buttondown = e.button
+            if (e.button == 2) {
+                if (!this.grouproot) {
+                    return
+                }
+                this.mousedownxy.X = e.x
+                this.mousedownxy.Y = e.y
+                this.roottraslatexy.X = 0
+                this.roottraslatexy.Y = 0
+                let groottranslatestr = this.grouproot.getAttribute("transform")
+                if (groottranslatestr) {
+                    let translatexyarray = groottranslatestr.replace("translate(", "").replace(")", "").trim().split(" ")
+                    if (translatexyarray.length == 2) {
+                        this.roottraslatexy.X = Number(translatexyarray[0])
+                        this.roottraslatexy.Y = Number(translatexyarray[1])
+                    }
+                }
+            }
+        });
+        this.svgRoot.addEventListener("mousemove", (e: MouseEvent) => {
+            if (this.buttondown == 2) {
+                this.MoveCanvas(e)
+            }
+        });
+        this.svgRoot.addEventListener("mouseup", (e: MouseEvent) => {
+            this.buttondown = -1
+            this.mousedownxy.X = -1
+            this.mousedownxy.Y = -1
+            this.roottraslatexy.X = 0
+            this.roottraslatexy.Y = 0
+        });
+
         this.svgRoot.appendChild(this.grouproot)
 
 
@@ -154,7 +196,7 @@ export class DefaultEngine implements ifc.IEngine {
         gp.appendChild(rightg)
         container.appendChild(gp)
         // 绘制文本
-        await this.CreateNodeText(contentg, nodedata, FirstLevelColor, StorkeColor, 10);
+        await this.CreateNodeText(contentg, nodedata, (level == 1 ? FirstLevelColor : SecondLevelColor), StorkeColor, (level == 1 ? 40 : 30), 10);
 
         if (nodedata.Childrens && nodedata.Childrens.length > 0) {
             for (let index: number = 0, ct: number = nodedata.Childrens.length, subnode: ifc.IMindNode; index < ct; index++) {
@@ -183,17 +225,116 @@ export class DefaultEngine implements ifc.IEngine {
                 }
                 await this.RenderSingleNode(level + 1, rootcontainer, subnode)
             }
+
+            // 调整所有子节点高差
+            this.AdjustNodeHeight(leftg)
+            this.AdjustNodeHeight(rightg)
+
+            // 调整左右区域位置
+            // 调整左、内容、右区域的X轴值，y轴值。
+            let contentgrect = contentg.getBoundingClientRect()
+            let leftgrect = leftg.getBoundingClientRect()
+            let rightgrect = rightg.getBoundingClientRect()
+            let maxY = leftgrect.height
+            if (contentgrect.height > maxY) {
+                maxY = contentgrect.height
+            }
+            if (rightgrect.height > maxY) {
+                maxY = rightgrect.height
+            }
+
+            let centy = maxY / 2
+            let centcontenty = contentgrect.height / 2
+
+            if (leftgrect.height < maxY) {
+                leftg.setAttribute("transform", `translate( 0 ${centy - (leftgrect.height / 2)} )`)
+            }
+
+            // 移动content
+            let hasleftrect = false
+            if (leftgrect.width > 0) {
+                hasleftrect = true
+                contentg.setAttribute("transform", `translate( ${leftgrect.width + DefaultLineWidth} ${centy - centcontenty} )`)
+            } else {
+                contentg.setAttribute("transform", `translate( 0 ${centy - centcontenty} )`)
+            }
+
+            if (leftgrect.width + contentgrect.width > 0) {
+                rightg.setAttribute("transform", `translate( ${leftgrect.width + contentgrect.width + (hasleftrect ? DefaultLineWidth * 2 : DefaultLineWidth)} ${centy - (rightgrect.height / 2)} )`)
+            }
         }
 
-        // 调整左右区域位置
-        
         // 注册事件
-        (gp as HTMLElement).addEventListener("click", function (e) {
-            debugger
-        })
+        (gp as HTMLElement).addEventListener("mousedown", (e) => {
+            this.buttondown = e.button
+            this.mousedownxy.X = e.x
+            this.mousedownxy.Y = e.y
+        });
+        (gp as HTMLElement).addEventListener("mouseup", (e) => {
+            this.buttondown = -1
+            this.mousedownxy.X = -1
+            this.mousedownxy.Y = -1
+        });
+        (gp as HTMLElement).addEventListener("mousemove", (e) => {
+            if (this.buttondown == -1) {
+                return
+            } else if (this.buttondown == 0) {
+                // 按下了左键，移动此节点，并重回大小
+            }
+        });
     }
 
-    // private AdjustNodePosition
+    /**
+     * 平移整个画布
+     * @param e 鼠标事件参数e
+     */
+    private MoveCanvas(e: MouseEvent) {
+        if (this.buttondown != 2) {
+            return
+        }
+
+        if (!this.grouproot) {
+            return
+        }
+
+        let offsetx = e.x - this.mousedownxy.X
+        let offsety = e.y - this.mousedownxy.Y
+        if (Math.abs(offsetx) < 3 || Math.abs(offsety) < 3) {
+            // 移动距离过小则不触发移动
+            return
+        }
+
+        let oldx = this.roottraslatexy.X
+        let oldy = this.roottraslatexy.Y
+        let newx = oldx + offsetx
+        let newy = oldy + offsety
+        this.grouproot.setAttribute("transform", `translate( ${newx} ${newy} )`)
+    }
+
+    /**
+     * 调整某个区域下的子元素的高度位置
+     * @param container 左/右区域容器
+     */
+    private AdjustNodeHeight(container: Element) {
+        if (container.children.length > 0) {
+            let prenoderect: DOMRect | undefined = undefined
+            let startheight: number = 0
+            for (let index: number = 0, ct: number = container.children.length, node: Element, noderect: DOMRect; index < ct; index++) {
+                node = container.children[index]
+                noderect = node.getBoundingClientRect()
+                if (!prenoderect) {
+                    startheight = 0
+                } else {
+                    startheight += (prenoderect.height + DefaultLineHeight)
+                }
+                prenoderect = noderect
+
+                if (startheight > 0) {
+                    node.setAttribute("transform", `translate( ${0} ${startheight} )`)
+                }
+            }
+        }
+    }
 
     /**
      * 创建一个文本节点，可以指定边框、背景色、字体大小、字体颜色等信息
@@ -206,7 +347,7 @@ export class DefaultEngine implements ifc.IEngine {
      * @param txtcolor 文本颜色
      * @param fontsize 文本字体大小
      */
-    private async CreateNodeText(root: Element, nodedata: ifc.IMindNode, fill: string, stroke: string, raduis: number = 3, storkewidth: number = 1, txtcolor: string = "red", fontsize: number = 16) {
+    private async CreateNodeText(root: Element, nodedata: ifc.IMindNode, fill: string, stroke: string, lineHeight: number, raduis: number = 3, storkewidth: number = 1, txtcolor: string = "red", fontsize: number = 16) {
         return new Promise((res, rej) => {
             // 创建节点流程，由于不知道节点文本最终真实会占用多少宽高，所以先渲染text文本，再调整背景框大小以包裹住文本，再使用矩阵变换调整位置
             // (root as HTMLElement).style.visibility = "hidden"
@@ -217,7 +358,7 @@ export class DefaultEngine implements ifc.IEngine {
             // 获取文本宽高，调整背景框大小  DOMNodeInsertedIntoDocument
             txtele.addEventListener("DOMNodeInsertedIntoDocument", function (this: Element, e) {
                 let cr = this.getBoundingClientRect()
-                let newddata = that.GetPathDAttributeData(0, 0, cr.width + 80, 40, raduis);
+                let newddata = that.GetPathDAttributeData(0, 0, cr.width + 40, lineHeight, raduis);
                 rect.setAttribute("d", newddata);  // 修正背景框大小
                 let bgrect = rect.getBoundingClientRect()
                 let txtg = tempsvgroot?.querySelector(`#${TextGroupIDPrefix}${nodedata.Id}`)

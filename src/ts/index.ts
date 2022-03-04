@@ -17,7 +17,7 @@ let mind = new SXMind.default("div#root", {
                 Childrens: [{
                     Id: "1-1-1",
                     ParentId: "1-1",
-                    Name: "电子数据项目组"
+                    Name: "电\r\n子\r\n数\r\n据\r\n项\r\n目\r\n组"
                 }, {
                     Id: "1-1-2",
                     ParentId: "1-1",
