@@ -71,16 +71,6 @@ export class DefaultEngine implements ifc.IEngine {
     private roottraslatexy: MouseXY = { X: 0, Y: 0 } // 用于平移画布时，记录根节点初始translate信息
     private nodetranslatexy: MouseXY = { X: 0, Y: 0 } // 用于移动单个节点时，记录此节点的初始translate信息，以便后续计算使用
 
-
-    // 用于标识节点区域的key
-    private keyNames: NodeKey = {
-        Did: "did",
-        ZoneType: "zone",
-        Left: "left",
-        Right: "right",
-        Content: "content"
-    }
-
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.rootElement = root
         this.svgRoot = svgRoot
