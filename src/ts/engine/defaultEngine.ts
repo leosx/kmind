@@ -72,7 +72,7 @@ export class DefaultEngine implements ifc.IEngine {
         this.mouseleftbtndownelement = null;
         this.mouseleftbtndownelementNode = null;
         this.zindexstartvalue = 10000;
-        this.linHleper = new DefaultLinePaiting(svgRoot, NodeRootPrefix)
+        this.linHleper = new DefaultLinePaiting(svgRoot, NodeContentZonePrefix)
         this.CheckZones()
     }
 
