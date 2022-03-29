@@ -1,16 +1,5 @@
 import * as ifc from "../interfaces"
-import { EventEmitter } from 'events';
-
-/**
- * 节点的数据属性名称
- */
-interface NodeKey {
-    Did: string
-    ZoneType: string
-    Left: string
-    Right: string
-    Content: string
-}
+import { DefaultLinePaiting } from "./defaultLinePaiting"
 
 // 一级节点填充色；所有节点边框色都是他
 const FirstLevelColor: string = "rgb(115, 161, 191)"
@@ -73,6 +62,7 @@ export class DefaultEngine implements ifc.IEngine {
     private mouseleftbtndownelement: EventTarget | null; // 用于记录鼠标左键按下时，出发的元素元素是哪个。
     private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
     private zindexstartvalue: number;
+    private linHleper: DefaultLinePaiting
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.rootElement = root
@@ -82,6 +72,7 @@ export class DefaultEngine implements ifc.IEngine {
         this.mouseleftbtndownelement = null;
         this.mouseleftbtndownelementNode = null;
         this.zindexstartvalue = 10000;
+        this.linHleper = new DefaultLinePaiting(svgRoot, NodeRootPrefix)
         this.CheckZones()
     }
 
@@ -164,7 +155,6 @@ export class DefaultEngine implements ifc.IEngine {
         // TODO: 暂不实现
     }
 
-
     async RenderBody(data: ifc.IMindNode[]): Promise<ifc.Result> {
         this.renderddata = data
         // 如果有多个根节点，应该不同节点进行平铺
@@ -176,6 +166,8 @@ export class DefaultEngine implements ifc.IEngine {
                 return err
             }
         }
+
+        this.linHleper.RenderLines(data)
     }
 
     /**
@@ -333,6 +325,8 @@ export class DefaultEngine implements ifc.IEngine {
             this.mouseleftbtndownelement = null
             this.mouseleftbtndownelementNode = null
         });
+
+        // nodedata[""]
     }
 
     /**
