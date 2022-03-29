@@ -374,12 +374,14 @@ export class DefaultEngine implements ifc.IEngine {
      */
     private MoveCanvas(e: MouseEvent) {
         if (this.buttondown == 1) {
+            // 移动单个节点
             if (!this.mouseleftbtndownelementNode || !this.mouseleftbtndownelement) {
                 return
             }
             this.SingleNodeMove(e, this.mouseleftbtndownelementNode);
             return;
         } else if (this.buttondown == 2) {
+            // 移动整个画布。
             if (!this.grouproot) {
                 return
             }
