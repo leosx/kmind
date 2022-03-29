@@ -70,12 +70,18 @@ export class DefaultEngine implements ifc.IEngine {
     private mousedownxy: MouseXY = { X: 0, Y: 0 } // 用于平移画布或者移动单个节点时，记录鼠标按下时的初始位置
     private roottraslatexy: MouseXY = { X: 0, Y: 0 } // 用于平移画布时，记录根节点初始translate信息
     private nodetranslatexy: MouseXY = { X: 0, Y: 0 } // 用于移动单个节点时，记录此节点的初始translate信息，以便后续计算使用
+    private mouseleftbtndownelement: EventTarget | null; // 用于记录鼠标左键按下时，出发的元素元素是哪个。
+    private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
+    private zindexstartvalue: number;
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.rootElement = root
         this.svgRoot = svgRoot
         this.options = options
         this.renderddata = []
+        this.mouseleftbtndownelement = null;
+        this.mouseleftbtndownelementNode = null;
+        this.zindexstartvalue = 10000;
         this.CheckZones()
     }
 
@@ -101,8 +107,9 @@ export class DefaultEngine implements ifc.IEngine {
             e.preventDefault()
         };
         this.svgRoot.addEventListener("mousedown", (e) => {
-            this.buttondown = e.button
-            if (e.button == 2) {
+            this.buttondown = e.buttons
+
+            if (e.buttons == 2) {
                 if (!this.grouproot) {
                     return
                 }
@@ -124,6 +131,7 @@ export class DefaultEngine implements ifc.IEngine {
             this.roottraslatexy.X = 0
             this.roottraslatexy.Y = 0
         });
+        this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
 
         this.svgRoot.appendChild(this.grouproot)
 
@@ -146,9 +154,17 @@ export class DefaultEngine implements ifc.IEngine {
         this.grouproot.appendChild(this.renderg)
     }
 
+    SvgMouseEntryHandler(e: MouseEvent) {
+        if (e.buttons != 1 && e.buttons != 2) {
+            this.buttondown = -1;
+        }
+    }
+
     RenderStyle(): ifc.Result {
         // TODO: 暂不实现
     }
+
+
     async RenderBody(data: ifc.IMindNode[]): Promise<ifc.Result> {
         this.renderddata = data
         // 如果有多个根节点，应该不同节点进行平铺
@@ -275,10 +291,31 @@ export class DefaultEngine implements ifc.IEngine {
         // 注册事件
         (contentg as HTMLElement).addEventListener("dblclick", this.NodeDoubleClick.bind(this));
         (contentg as HTMLElement).addEventListener("mousedown", (e) => {
-            this.buttondown = e.button
+            this.buttondown = e.buttons
             this.mousedownxy.X = e.x
             this.mousedownxy.Y = e.y
-            if (e.button == 0) {
+            if (e.buttons == 1) {
+                this.mouseleftbtndownelement = e.target
+                let targetid = (e.target as Element)?.id
+                if (!targetid) {
+                    return;
+                }
+
+                if (targetid.startsWith(NodeRootPrefix)) {
+                    this.mouseleftbtndownelementNode = e.target as HTMLElement;
+                } else {
+                    let splitarrary = targetid.split("_")
+                    if (splitarrary.length < 2) {
+                        return;
+                    }
+                    this.mouseleftbtndownelementNode = this.svgRoot?.querySelector(`#${NodeRootPrefix}${splitarrary[splitarrary.length - 1]}`) as HTMLElement;
+                }
+
+                if (!this.mouseleftbtndownelementNode)
+                    return;
+                this.mouseleftbtndownelementNode.style.zIndex = this.zindexstartvalue.toString();
+                this.zindexstartvalue = this.zindexstartvalue + 1;
+
                 // 记录节点初始状态下的translate信息
                 let temptranslate = this.GetElementTranslate(gp)
                 if (temptranslate) {
@@ -293,9 +330,8 @@ export class DefaultEngine implements ifc.IEngine {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
-        });
-        (contentg as HTMLElement).addEventListener("mousemove", e => {
-            this.SingleNodeMove(e, gp)
+            this.mouseleftbtndownelement = null
+            this.mouseleftbtndownelementNode = null
         });
     }
 
@@ -314,7 +350,7 @@ export class DefaultEngine implements ifc.IEngine {
      * @returns void
      */
     private SingleNodeMove(e: MouseEvent, movenode: Element) {
-        if (this.buttondown != 0) {
+        if (this.buttondown != 1 || !movenode) {
             return
         }
 
@@ -330,8 +366,6 @@ export class DefaultEngine implements ifc.IEngine {
         let newx = oldx + offsetx
         let newy = oldy + offsety
         movenode.setAttribute("transform", `translate( ${newx} ${newy} )`)
-
-        //
     }
 
     /**
@@ -339,26 +373,30 @@ export class DefaultEngine implements ifc.IEngine {
      * @param e 鼠标事件参数e
      */
     private MoveCanvas(e: MouseEvent) {
-        if (this.buttondown != 2) {
-            return
-        }
+        if (this.buttondown == 1) {
+            if (!this.mouseleftbtndownelementNode || !this.mouseleftbtndownelement) {
+                return
+            }
+            this.SingleNodeMove(e, this.mouseleftbtndownelementNode);
+            return;
+        } else if (this.buttondown == 2) {
+            if (!this.grouproot) {
+                return
+            }
 
-        if (!this.grouproot) {
-            return
-        }
+            let offsetx = e.x - this.mousedownxy.X
+            let offsety = e.y - this.mousedownxy.Y
+            if (Math.abs(offsetx) < 3 || Math.abs(offsety) < 3) {
+                // 移动距离过小则不触发移动
+                return
+            }
 
-        let offsetx = e.x - this.mousedownxy.X
-        let offsety = e.y - this.mousedownxy.Y
-        if (Math.abs(offsetx) < 3 || Math.abs(offsety) < 3) {
-            // 移动距离过小则不触发移动
-            return
+            let oldx = this.roottraslatexy.X
+            let oldy = this.roottraslatexy.Y
+            let newx = oldx + offsetx
+            let newy = oldy + offsety
+            this.grouproot.setAttribute("transform", `translate( ${newx} ${newy} )`)
         }
-
-        let oldx = this.roottraslatexy.X
-        let oldy = this.roottraslatexy.Y
-        let newx = oldx + offsetx
-        let newy = oldy + offsety
-        this.grouproot.setAttribute("transform", `translate( ${newx} ${newy} )`)
     }
 
     /**
