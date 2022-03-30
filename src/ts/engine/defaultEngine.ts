@@ -63,7 +63,6 @@ export class DefaultEngine implements ifc.IEngine {
     private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
     private zindexstartvalue: number;
     private linHleper: DefaultLinePaiting // 画连接线的帮助类，负责连接节点。
-    private movingData: ifc.IMindNode | undefined // 正在移动的节点
     private mobingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
@@ -123,7 +122,6 @@ export class DefaultEngine implements ifc.IEngine {
             this.mousedownxy.Y = -1
             this.roottraslatexy.X = 0
             this.roottraslatexy.Y = 0
-            this.movingData = undefined
             this.mobingDataParent = undefined
         });
         this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
@@ -326,7 +324,6 @@ export class DefaultEngine implements ifc.IEngine {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
-            this.movingData = undefined
             this.mobingDataParent = undefined
             this.mouseleftbtndownelement = null
             this.mouseleftbtndownelementNode = null
@@ -372,14 +369,13 @@ export class DefaultEngine implements ifc.IEngine {
             let dataid = htmlele.id.replace(NodeRootPrefix, "")
 
             let tempParent = undefined
-            let tempNode = undefined
+
             // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
-            if (this.movingData && this.mobingDataParent) {
+            if (this.mobingDataParent) {
                 tempParent = this.mobingDataParent
-                tempNode = this.movingData
             } else {
                 // 找到此节点对应的数据。
-                tempNode = this.GetNodeDataByNodeId(dataid)
+                const tempNode = this.GetNodeDataByNodeId(dataid)
                 if (!tempNode) {
                     return
                 }

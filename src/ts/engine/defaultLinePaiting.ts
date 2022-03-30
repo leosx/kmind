@@ -109,9 +109,6 @@ export class DefaultLinePaiting {
         if (!rerender) {
             if (testline)
                 return new Error("数据连线已存在")
-        } else {
-            if (testline)
-                this.linegroupnode?.removeChild(testline)
         }
 
         if (!this.linegroupnode) {
@@ -142,15 +139,6 @@ export class DefaultLinePaiting {
         const secondbd = secondenoe.getBoundingClientRect()
         secondnodepositin.X = second.direction == "left" ? secondbd.left - this.rootsvgposition.X + secondbd.width : secondbd.left - this.rootsvgposition.X; // 第二个节点要根据方向进行判断是左，还是右。
         secondnodepositin.Y = secondbd.top - this.rootsvgposition.Y + (secondbd.height / 2)
-
-        const pathnode = document.createElementNS(this.svgnamespace, "path")
-        pathnode.setAttribute("id", lineid)
-        pathnode.setAttribute("fill", this.LineFill)
-        pathnode.setAttribute("stroke", this.LineStroke)
-        pathnode.setAttribute("stroke-width", this.LineStrokeWidth)
-        if (!second.Childrens || second.Childrens.length < 1) {
-            pathnode.setAttribute("marker-end", "url(#km_marker_node)")
-        }
 
         let dData: string = ""
 
@@ -238,6 +226,20 @@ export class DefaultLinePaiting {
 
                 dData = `M${startPoint.X} ${startPoint.Y}C${pstart.X},${pstart.Y},${pend.X},${pend.Y},${endPoint.X} ${endPoint.Y}`
             }
+        }
+
+        if (testline) {
+            testline.setAttribute("d", dData)
+            return undefined
+        }
+        
+        const pathnode = document.createElementNS(this.svgnamespace, "path")
+        pathnode.setAttribute("id", lineid)
+        pathnode.setAttribute("fill", this.LineFill)
+        pathnode.setAttribute("stroke", this.LineStroke)
+        pathnode.setAttribute("stroke-width", this.LineStrokeWidth)
+        if (!second.Childrens || second.Childrens.length < 1) {
+            pathnode.setAttribute("marker-end", "url(#km_marker_node)")
         }
 
         if (dData) {
