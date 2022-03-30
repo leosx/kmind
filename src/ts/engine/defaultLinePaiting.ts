@@ -228,11 +228,11 @@ export class DefaultLinePaiting {
             }
         }
 
-        if (testline) {
+        if (rerender && testline) {
             testline.setAttribute("d", dData)
             return undefined
         }
-        
+
         const pathnode = document.createElementNS(this.svgnamespace, "path")
         pathnode.setAttribute("id", lineid)
         pathnode.setAttribute("fill", this.LineFill)
