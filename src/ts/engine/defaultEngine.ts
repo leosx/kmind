@@ -59,10 +59,12 @@ export class DefaultEngine implements ifc.IEngine {
     private mousedownxy: MouseXY = { X: 0, Y: 0 } // 用于平移画布或者移动单个节点时，记录鼠标按下时的初始位置
     private roottraslatexy: MouseXY = { X: 0, Y: 0 } // 用于平移画布时，记录根节点初始translate信息
     private nodetranslatexy: MouseXY = { X: 0, Y: 0 } // 用于移动单个节点时，记录此节点的初始translate信息，以便后续计算使用
-    private mouseleftbtndownelement: EventTarget | null; // 用于记录鼠标左键按下时，出发的元素元素是哪个。
+    private mouseleftbtndownelement: EventTarget | null; // 用于记录鼠标左键按下时，触发事件的元素是哪个。
     private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
     private zindexstartvalue: number;
-    private linHleper: DefaultLinePaiting
+    private linHleper: DefaultLinePaiting // 画连接线的帮助类，负责连接节点。
+    private movingData: ifc.IMindNode | undefined // 正在移动的节点
+    private mobingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.rootElement = root
@@ -121,6 +123,8 @@ export class DefaultEngine implements ifc.IEngine {
             this.mousedownxy.Y = -1
             this.roottraslatexy.X = 0
             this.roottraslatexy.Y = 0
+            this.movingData = undefined
+            this.mobingDataParent = undefined
         });
         this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
 
@@ -322,6 +326,8 @@ export class DefaultEngine implements ifc.IEngine {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
+            this.movingData = undefined
+            this.mobingDataParent = undefined
             this.mouseleftbtndownelement = null
             this.mouseleftbtndownelementNode = null
         });
@@ -360,6 +366,90 @@ export class DefaultEngine implements ifc.IEngine {
         let newx = oldx + offsetx
         let newy = oldy + offsety
         movenode.setAttribute("transform", `translate( ${newx} ${newy} )`)
+
+        const htmlele = movenode as HTMLElement;
+        if (htmlele && htmlele.id) {
+            let dataid = htmlele.id.replace(NodeRootPrefix, "")
+
+            let tempParent = undefined
+            let tempNode = undefined
+            // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
+            if (this.movingData && this.mobingDataParent) {
+                tempParent = this.mobingDataParent
+                tempNode = this.movingData
+            } else {
+                // 找到此节点对应的数据。
+                tempNode = this.GetNodeDataByNodeId(dataid)
+                if (!tempNode) {
+                    return
+                }
+
+                // 找到此节点的父级。
+                tempParent = this.GetNodeDataByNodeId(tempNode.ParentId)
+                if (!tempParent) {
+                    return
+                }
+            }
+
+            const err = this.linHleper.RenderLines([tempParent], true)
+            if (err) {
+                console.log(err)
+                return
+            }
+        }
+    }
+
+    /**
+     * 从已渲染的数据中根据节点ID查找某个节点数据信息。
+     * @param nodeid 带查找的节点ID
+     * @returns 节点数据
+     */
+    private GetNodeDataByNodeId(nodeid: string | number): ifc.IMindNode | undefined {
+        if (this.renderddata.length <= 0) {
+            return undefined
+        }
+
+        for (let index = 0; index < this.renderddata.length; index++) {
+            const element = this.renderddata[index];
+            if (element.Id.toString() == nodeid.toString()) {
+                return element
+            }
+
+            if (element.Childrens && element.Childrens.length > 0) {
+                let temp = this.GetSubNodebyNodeId(element, nodeid)
+                if (temp) {
+                    return temp
+                }
+            }
+        }
+
+        return undefined
+    }
+
+    /**
+     * 查找某个节点下的所有子节点是否包含某个ID的子节点。
+     * @param parentNode 父级节点
+     * @param nodeid 节点ID
+     * @returns 节点数据
+     */
+    private GetSubNodebyNodeId(parentNode: ifc.IMindNode, nodeid: string | number): ifc.IMindNode | undefined {
+        if (parentNode.Id.toString() == nodeid.toString()) {
+            return parentNode
+        }
+
+        if (!parentNode.Childrens) {
+            return undefined
+        }
+
+        for (let index = 0; index < parentNode.Childrens.length; index++) {
+            const element = parentNode.Childrens[index];
+            let tempresult = this.GetSubNodebyNodeId(element, nodeid)
+            if (tempresult) {
+                return tempresult
+            }
+        }
+
+        return undefined
     }
 
     /**
