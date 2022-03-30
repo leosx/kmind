@@ -380,10 +380,15 @@ export class DefaultEngine implements ifc.IEngine {
                     return
                 }
 
-                // 找到此节点的父级。
-                tempParent = this.GetNodeDataByNodeId(tempNode.ParentId)
-                if (!tempParent) {
-                    return
+                // 如果此节点本身就是根节点了，那么无须再往上那个找父级节点，此节点就是根节点了。
+                if (!tempNode.ParentId || tempNode.ParentId.toString() == "0") {
+                    tempParent = tempNode
+                } else {
+                    // 找到此节点的父级。
+                    tempParent = this.GetNodeDataByNodeId(tempNode.ParentId)
+                    if (!tempParent) {
+                        return
+                    }
                 }
             }
 
