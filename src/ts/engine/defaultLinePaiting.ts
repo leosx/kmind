@@ -51,10 +51,10 @@ export class DefaultLinePaiting {
      * 使用连接线将所有一级数据节点与其子节点链接起来。
      * @param data 要渲染节点连接线的数据
      */
-    RenderLines(data: ifc.IMindNode[], rerender: boolean = false): (Error | undefined) {
+    RenderLines(data: ifc.IMindNode[], level: number = 1, rerender: boolean = false): (Error | undefined) {
         for (let index = 0, ct = data.length, temp: ifc.IMindNode, err: ifc.Result; index < ct; index++) {
             temp = data[index]
-            err = this.RenderOneNodeLine(temp, 1, rerender)
+            err = this.RenderOneNodeLine(temp, level, rerender)
             if (err) {
                 return err
             }

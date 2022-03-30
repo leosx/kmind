@@ -169,7 +169,7 @@ export class DefaultEngine implements ifc.IEngine {
             }
         }
 
-        this.linHleper.RenderLines(data)
+        this.linHleper.RenderLines(data, 1)
     }
 
     /**
@@ -369,7 +369,6 @@ export class DefaultEngine implements ifc.IEngine {
             let dataid = htmlele.id.replace(NodeRootPrefix, "")
 
             let tempParent = undefined
-
             // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
             if (this.mobingDataParent) {
                 tempParent = this.mobingDataParent
@@ -392,7 +391,10 @@ export class DefaultEngine implements ifc.IEngine {
                 }
             }
 
-            const err = this.linHleper.RenderLines([tempParent], true)
+            let datalevel = htmlele.dataset.level;
+            if (!datalevel)
+                return
+            const err = this.linHleper.RenderLines([tempParent], parseInt(datalevel) - 1, true)
             if (err) {
                 console.log(err)
                 return
