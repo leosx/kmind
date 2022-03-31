@@ -52,6 +52,9 @@ export class DefaultLinePaiting {
      * @param data 要渲染节点连接线的数据
      */
     RenderLines(data: ifc.IMindNode[], level: number = 1, rerender: boolean = false): (Error | undefined) {
+        if (level <= 0)
+            level = 1
+            
         for (let index = 0, ct = data.length, temp: ifc.IMindNode, err: ifc.Result; index < ct; index++) {
             temp = data[index]
             err = this.RenderOneNodeLine(temp, level, rerender)
@@ -141,6 +144,7 @@ export class DefaultLinePaiting {
         secondnodepositin.Y = secondbd.top - this.rootsvgposition.Y + (secondbd.height / 2)
 
         let dData: string = ""
+        
 
         // 判断两个点之间是否时水平，也就是y值一致，是的话直接直线连接。
         if (firstnodecenter.Y == secondnodepositin.Y) {
@@ -176,7 +180,7 @@ export class DefaultLinePaiting {
             } else {
                 // N>1  N级和N+1之间连线用三次贝塞尔曲线
                 // 目前参考：https://blog.csdn.net/zhaozjc112/article/details/52909172  中的ease 动画效果的贝塞尔曲线值比例来使用
-                // cubic-bezier (x1,y1,x2,y2) x1,y1为起点控制点，x2,y2为结束点控制点。  ease=cubic-bezier(.25,.01,.25,1)
+                // cubic-bezier (x1,y1,x2,y2) x1,y1为起点控制点，x2,y2为结束点控制点。  ease=cubic-bezier(.42,.0,.58,1)
                 let startPoint: Position = { X: 0, Y: 0 } // 起点坐标
                 let endPoint: Position = { X: 0, Y: 0 } //终点坐标
 
@@ -193,11 +197,11 @@ export class DefaultLinePaiting {
                     endPoint.Y = secondbd.top + (secondbd.height / 2) - this.rootsvgposition.Y
                 }
 
-                let startxPercent = 0.5; // 起点控制点X轴百分比
-                let startyPercent = 0.1; // 起点控制点Y轴百分比
-                let endXpercent = 0.25; // 结束点X轴百分比
-                let pstart: Position = { X: 0, Y: 0 } // 起点控制点坐标
-                let pend: Position = { X: 0, Y: endPoint.Y } // 终点控制点坐标。
+                const startxPercent = 0.42; // 起点控制点X轴百分比
+                const startyPercent = 0; // 起点控制点Y轴百分比
+                const endXpercent = 0.58; // 结束点X轴百分比
+                const pstart: Position = { X: 0, Y: 0 } // 起点控制点坐标
+                const pend: Position = { X: 0, Y: endPoint.Y } // 终点控制点坐标。
                 let offsetx = Math.abs(startPoint.X - endPoint.X)
                 let offsety = Math.abs(startPoint.Y - endPoint.Y)
                 if (startPoint.X > endPoint.X) {
