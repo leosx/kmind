@@ -485,6 +485,9 @@ export class DefaultEngine implements ifc.IEngine {
             let newx = oldx + offsetx
             let newy = oldy + offsety
             this.grouproot.setAttribute("transform", `translate( ${newx} ${newy} )`)
+            const err = this.linHleper.RenderLines(this.renderddata, 1, true)
+            if (err)
+                console.error(err)
         }
     }
 
