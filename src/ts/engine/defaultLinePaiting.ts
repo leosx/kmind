@@ -1,22 +1,27 @@
 import * as ifc from "../interfaces"
 
 export class DefaultLinePaiting {
-    private lineidPrefix: string = "md_line"
+    private lineidPrefix: string
     private svgRoot: SVGSVGElement // SVG根节点
     private nodePrefix: string // g 分组节点的ID前缀。
     private svgnamespace: string = "http://www.w3.org/2000/svg"
     private linegroupnode: Element | undefined
-    private definestyleid: string = "km_lin_id"
+    private uid: string
+    private definestyleid: string
     private rootsvgposition: Position = { X: 0, Y: 0 } // svg节点的绝对位置。用于计算svg中某个子节点的相对svg的位置。
 
-    public LinegroupPrefix: string = "md_l_g_root" // 连线分组根节点前缀。
+    public LinegroupPrefix: string // 连线分组根节点前缀。
     public LineFill: string = "none" // 连线的fill属性值
     public LineStroke: string = "rgb(115, 161, 191)" // 连线的stroke属性值
     public LineStrokeWidth: string = "1" // 连线的stroke-width属性值。
 
-    constructor(root: SVGSVGElement, _prefix: string) {
+    constructor(root: SVGSVGElement, _prefix: string, uuid: string) {
+        this.uid = uuid
         this.svgRoot = root
         this.nodePrefix = _prefix
+        this.lineidPrefix = `${this.uid}_md_line`
+        this.definestyleid = `${this.uid}_km_lin_id`
+        this.LinegroupPrefix = `${this.uid}_md_l_g_root`
         const rootrect: DOMRect = this.svgRoot.getBoundingClientRect()
         this.rootsvgposition.X = rootrect.left
         this.rootsvgposition.Y = rootrect.top
@@ -112,10 +117,6 @@ export class DefaultLinePaiting {
         if (!rerender) {
             if (testline)
                 return new Error("数据连线已存在")
-        }
-
-        if (!this.linegroupnode) {
-            return Error("连线_g节点不存在，无法连线。")
         }
 
         if (!second.direction) {
@@ -247,7 +248,7 @@ export class DefaultLinePaiting {
         } else {
             // 有子节点，绘制折叠按钮。折叠按钮只有二级和三级连接的时候才有，一级和二级之间没有折叠按钮。
             if (level >= 2) {
-                
+
             }
         }
 

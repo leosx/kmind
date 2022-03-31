@@ -1,9 +1,14 @@
 export class ExpanderHelper {
     private svgRoot: SVGSVGElement // SVG根节点
+    private uid: string
     private buttonGroups: Element // 按钮层，将折叠按钮等操作按钮都放在这里。
-    constructor(root: SVGSVGElement, btng: Element) {
+    private svgnamespace: string = "http://www.w3.org/2000/svg"
+    public expanderPrefix: string
+    constructor(root: SVGSVGElement, btng: Element,uid:string) {
         this.svgRoot = root
         this.buttonGroups = btng
+        this.uid = uid
+        this.expanderPrefix = `${this.uid}_expander_`
     }
 
     /**
@@ -13,7 +18,8 @@ export class ExpanderHelper {
      * @param defaultExpand 是否默认展开。
      * @param size 折叠圆圈大小
      */
-    public RenderExpander(tslx: number, tsly: number, defaultExpand = false, size: number = 12) {
-
+    public RenderExpander(nodeid: string | number, tslx: number, tsly: number, defaultExpand = false, size: number = 12) {
+        const gp = document.createElementNS(this.svgnamespace, "g");
+        // gp.setAttribute("id", nodeid);
     }
 }

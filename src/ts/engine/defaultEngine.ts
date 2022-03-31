@@ -1,40 +1,6 @@
 import * as ifc from "../interfaces"
+import { v4 as uuid } from 'uuid';
 import { DefaultLinePaiting } from "./defaultLinePaiting"
-
-// 一级节点填充色；所有节点边框色都是他
-const FirstLevelColor: string = "rgb(115, 161, 191)"
-// 所有层级的边框色
-const StorkeColor: string = "rgb(115, 161, 191)"
-// 二级节点填充色
-const SecondLevelColor: string = "rgb(238, 243, 246)"
-
-// 节点文本组(g)的ID名称前缀
-const TextGroupIDPrefix: string = "mind_txtgroupid_"
-
-// 节点文本背景路径id前缀
-const NodeTextBGPrefix: string = "mind_txtbgid_"
-
-// 节点文本(text)的ID名称前缀
-const TextIDPrefix: string = "mind_txtid_"
-
-// 节点根分组ID前缀
-const NodeRootPrefix: string = "ndrootg_"
-
-// 节点左侧子数据区域分组ID前缀
-const NodeLeftZonePrefix: string = "ndleftg_"
-
-// 节点内容区域分组ID前缀
-const NodeContentZonePrefix: string = "ndcontentg_"
-
-// 节点右侧子数据区域分组ID前缀
-const NodeRightZonePrefix: string = "ndrightg_"
-
-// 默认连线X轴距离
-const DefaultLineWidth: number = 100
-
-// 默认同区域两项节点的高度距离
-const DefaultLineHeight: number = 30
-
 interface MouseXY {
     X: number
     Y: number
@@ -47,11 +13,45 @@ interface MouseXY {
  * 第二级外形不再是方框
  */
 export class DefaultEngine implements ifc.IEngine {
+    // 一级节点填充色；所有节点边框色都是他
+    private FirstLevelColor: string = "rgb(115, 161, 191)"
+    // 所有层级的边框色
+    private StorkeColor: string = "rgb(115, 161, 191)"
+    // 二级节点填充色
+    private SecondLevelColor: string = "rgb(238, 243, 246)"
+
+    // 节点文本组(g)的ID名称前缀
+    private TextGroupIDPrefix: string
+
+    // 节点文本背景路径id前缀
+    private NodeTextBGPrefix: string
+
+    // 节点文本(text)的ID名称前缀
+    private TextIDPrefix: string
+
+    // 节点根分组ID前缀
+    private NodeRootPrefix: string
+
+    // 节点左侧子数据区域分组ID前缀
+    private NodeLeftZonePrefix: string
+
+    // 节点内容区域分组ID前缀
+    private NodeContentZonePrefix: string
+
+    // 节点右侧子数据区域分组ID前缀
+    private NodeRightZonePrefix: string
+
+    // 默认连线X轴距离
+    private DefaultLineWidth: number = 100
+
+    // 默认同区域两项节点的高度距离
+    private DefaultLineHeight: number = 30
+
+    private uid: string
     private rootElement: Element | undefined // 容器根元素
     private svgRoot: SVGSVGElement | undefined // SVG根节点
     private options: ifc.IMindOption // 参数选项
     private grouproot: Element | undefined // 整个绘图分组，用于整体移动、变换等操作
-    private connectg: Element | undefined // 连接线分组
     private renderg: Element | undefined // 渲染节点分组
     private svgnamespace: string = "http://www.w3.org/2000/svg"
     private renderddata: ifc.IMindNode[]
@@ -66,6 +66,7 @@ export class DefaultEngine implements ifc.IEngine {
     private mobingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
+        this.uid = `k${uuid().slice(3, 8)}`
         this.rootElement = root
         this.svgRoot = svgRoot
         this.options = options
@@ -73,8 +74,17 @@ export class DefaultEngine implements ifc.IEngine {
         this.mouseleftbtndownelement = null;
         this.mouseleftbtndownelementNode = null;
         this.zindexstartvalue = 10000;
-        this.linHleper = new DefaultLinePaiting(svgRoot, NodeContentZonePrefix)
+
+        this.TextGroupIDPrefix = `${this.uid}_mind_txtgroupid_`
+        this.NodeTextBGPrefix = `${this.uid}_mind_txtbgid_`
+        this.TextIDPrefix = `${this.uid}_mind_txtid_`
+        this.NodeRootPrefix = `${this.uid}_ndrootg_`
+        this.NodeLeftZonePrefix = `${this.uid}_ndleftg_`
+        this.NodeContentZonePrefix = `${this.uid}_ndcontentg_`
+        this.NodeRightZonePrefix = `${this.uid}_ndrightg_`
+
         this.CheckZones()
+        this.linHleper = new DefaultLinePaiting(svgRoot, this.NodeContentZonePrefix, this.uid);
     }
 
     /**
@@ -84,12 +94,17 @@ export class DefaultEngine implements ifc.IEngine {
         if (!this.svgRoot) {
             throw new Error("根节点不为空，请核实")
         }
-        let grouproot = this.svgRoot.querySelector("#groot")
+        let grouproot = this.svgRoot.querySelector(`#${this.uid}_groot`)
         if (grouproot) {
             throw new Error("根节点不为空，请核实")
         }
+
+        if (!this.svgRoot.dataset.uid) {
+            this.svgRoot.dataset.uid = this.uid
+        }
+
         this.grouproot = document.createElementNS(this.svgnamespace, "g")
-        this.grouproot.setAttribute("id", "groot");
+        this.grouproot.setAttribute("id", `${this.uid}_groot`);
         this.svgRoot.onselectstart = () => {
             // 禁止选择功能
             return false
@@ -125,25 +140,14 @@ export class DefaultEngine implements ifc.IEngine {
             this.mobingDataParent = undefined
         });
         this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
-
         this.svgRoot.appendChild(this.grouproot)
 
-
-        let connectgroup = this.svgRoot.querySelector("#connectgroup")
-        if (connectgroup) {
-            throw new Error("根节点不为空，请核实")
-        }
-        this.connectg = document.createElementNS(this.svgnamespace, "g")
-        this.connectg.setAttribute("id", "connectgroup")
-        this.grouproot.appendChild(this.connectg)
-
-
-        let renderzone = this.svgRoot.querySelector("#render")
+        let renderzone = this.svgRoot.querySelector(`#${this.uid}_render`)
         if (renderzone) {
             throw new Error("根节点不为空，请核实")
         }
         this.renderg = document.createElementNS(this.svgnamespace, "g")
-        this.renderg.setAttribute("id", "render")
+        this.renderg.setAttribute("id", `${this.uid}_render`)
         this.grouproot.appendChild(this.renderg)
     }
 
@@ -197,24 +201,24 @@ export class DefaultEngine implements ifc.IEngine {
     private async RenderSingleNode(level: number, container: Element, nodedata: ifc.IMindNode): Promise<ifc.Result> {
         // 生成节点、同时记录其关系信息
         let gp = document.createElementNS(this.svgnamespace, "g");
-        gp.setAttribute("id", `${NodeRootPrefix}${nodedata.Id}`);
+        gp.setAttribute("id", `${this.NodeRootPrefix}${nodedata.Id}`);
         (gp as HTMLElement).dataset.level = level.toString();
 
         let leftg = document.createElementNS(this.svgnamespace, "g");
-        leftg.setAttribute("id", `${NodeLeftZonePrefix}${nodedata.Id}`);
+        leftg.setAttribute("id", `${this.NodeLeftZonePrefix}${nodedata.Id}`);
 
         let contentg = document.createElementNS(this.svgnamespace, "g");
-        contentg.setAttribute("id", `${NodeContentZonePrefix}${nodedata.Id}`);
+        contentg.setAttribute("id", `${this.NodeContentZonePrefix}${nodedata.Id}`);
 
         let rightg = document.createElementNS(this.svgnamespace, "g");
-        rightg.setAttribute("id", `${NodeRightZonePrefix}${nodedata.Id}`);
+        rightg.setAttribute("id", `${this.NodeRightZonePrefix}${nodedata.Id}`);
 
         gp.appendChild(leftg)
         gp.appendChild(contentg)
         gp.appendChild(rightg)
         container.appendChild(gp)
         // 绘制文本
-        await this.CreateNodeText(contentg, nodedata, (level == 1 ? FirstLevelColor : SecondLevelColor), StorkeColor, (level == 1 ? 40 : 30), 10);
+        await this.CreateNodeText(contentg, nodedata, (level == 1 ? this.FirstLevelColor : this.SecondLevelColor), this.StorkeColor, (level == 1 ? 40 : 30), 10);
 
         if (nodedata.Childrens && nodedata.Childrens.length > 0) {
             for (let index: number = 0, ct: number = nodedata.Childrens.length, subnode: ifc.IMindNode; index < ct; index++) {
@@ -272,13 +276,13 @@ export class DefaultEngine implements ifc.IEngine {
             let hasleftrect = false
             if (leftgrect.width > 0) {
                 hasleftrect = true
-                contentg.setAttribute("transform", `translate( ${leftgrect.width + DefaultLineWidth} ${centy - centcontenty} )`)
+                contentg.setAttribute("transform", `translate( ${leftgrect.width + this.DefaultLineWidth} ${centy - centcontenty} )`)
             } else {
                 contentg.setAttribute("transform", `translate( 0 ${centy - centcontenty} )`)
             }
 
             if (leftgrect.width + contentgrect.width > 0) {
-                rightg.setAttribute("transform", `translate( ${leftgrect.width + contentgrect.width + (hasleftrect ? DefaultLineWidth * 2 : DefaultLineWidth)} ${centy - (rightgrect.height / 2)} )`)
+                rightg.setAttribute("transform", `translate( ${leftgrect.width + contentgrect.width + (hasleftrect ? this.DefaultLineWidth * 2 : this.DefaultLineWidth)} ${centy - (rightgrect.height / 2)} )`)
             }
         }
 
@@ -295,14 +299,14 @@ export class DefaultEngine implements ifc.IEngine {
                     return;
                 }
 
-                if (targetid.startsWith(NodeRootPrefix)) {
+                if (targetid.startsWith(this.NodeRootPrefix)) {
                     this.mouseleftbtndownelementNode = e.target as HTMLElement;
                 } else {
                     let splitarrary = targetid.split("_")
                     if (splitarrary.length < 2) {
                         return;
                     }
-                    this.mouseleftbtndownelementNode = this.svgRoot?.querySelector(`#${NodeRootPrefix}${splitarrary[splitarrary.length - 1]}`) as HTMLElement;
+                    this.mouseleftbtndownelementNode = this.svgRoot?.querySelector(`#${this.NodeRootPrefix}${splitarrary[splitarrary.length - 1]}`) as HTMLElement;
                 }
 
                 if (!this.mouseleftbtndownelementNode)
@@ -366,7 +370,7 @@ export class DefaultEngine implements ifc.IEngine {
 
         const htmlele = movenode as HTMLElement;
         if (htmlele && htmlele.id) {
-            let dataid = htmlele.id.replace(NodeRootPrefix, "")
+            let dataid = htmlele.id.replace(this.NodeRootPrefix, "")
 
             let tempParent = undefined
             // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
@@ -505,7 +509,7 @@ export class DefaultEngine implements ifc.IEngine {
                 if (!prenoderect) {
                     startheight = 0
                 } else {
-                    startheight += (prenoderect.height + DefaultLineHeight)
+                    startheight += (prenoderect.height + this.DefaultLineHeight)
                 }
                 prenoderect = noderect
 
@@ -541,7 +545,7 @@ export class DefaultEngine implements ifc.IEngine {
                 let newddata = that.GetPathDAttributeData(0, 0, cr.width + 40, lineHeight, raduis);
                 rect.setAttribute("d", newddata);  // 修正背景框大小
                 let bgrect = rect.getBoundingClientRect()
-                let txtg = tempsvgroot?.querySelector(`#${TextGroupIDPrefix}${nodedata.Id}`)
+                let txtg = tempsvgroot?.querySelector(`#${that.TextGroupIDPrefix}${nodedata.Id}`)
                 let x1 = cr.width / 2
                 let y1 = cr.height / 2
                 let x2 = bgrect.width / 2
@@ -572,7 +576,7 @@ export class DefaultEngine implements ifc.IEngine {
      */
     private CreateRectPath(nodedata: ifc.IMindNode, fill: string, stroke: string, raduis: number = 3, storkewidth: number = 1): Element {
         let pt = document.createElementNS(this.svgnamespace, "path")
-        pt.setAttribute("id", `${NodeTextBGPrefix}${nodedata.Id}`)
+        pt.setAttribute("id", `${this.NodeTextBGPrefix}${nodedata.Id}`)
         pt.setAttribute("fill", fill)
         pt.setAttribute("stroke", stroke)
         pt.setAttribute("stroke-width", storkewidth.toString());
@@ -617,13 +621,13 @@ export class DefaultEngine implements ifc.IEngine {
      */
     private RenderText(dataid: string, txt: string, fontsize: number = 16, color: string = "red"): Element {
         let textgroup = document.createElementNS(this.svgnamespace, "g")
-        textgroup.setAttribute("id", `${TextGroupIDPrefix}${dataid}`)
+        textgroup.setAttribute("id", `${this.TextGroupIDPrefix}${dataid}`)
         textgroup.setAttribute("fill", color)
         textgroup.setAttribute("x", "0")
         textgroup.setAttribute("y", "0")
 
         let textele = document.createElementNS(this.svgnamespace, "text")
-        textele.setAttribute("id", `${TextIDPrefix}${dataid}`)
+        textele.setAttribute("id", `${this.TextIDPrefix}${dataid}`)
         textele.setAttribute("font-size", `${fontsize}`);
         textele.textContent = txt
         textgroup.appendChild(textele)
