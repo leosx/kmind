@@ -55,14 +55,18 @@ export class DefaultLinePaiting {
     /**
      * 使用连接线将所有一级数据节点与其子节点链接起来。
      * @param data 要渲染节点连接线的数据
+     * @param level 绘制的节点数据第几级
+     * @param rerender 是否重绘，重绘的话，会检查是否有可复用数据，以提升绘制性能。
+     * @param parentnode 可选参数，表示data数组中所有数据的父级节点，如果有，则会查找此父级节点，如果找到，会将所有data节点与此父级节点相连。
+     * @returns 异常信息
      */
-    RenderLines(data: ifc.IMindNode[], level: number = 1, rerender: boolean = false): (Error | undefined) {
+    public RenderLines(data: ifc.IMindNode[], level: number = 1, rerender: boolean = false, parentnode: ifc.IMindNode | undefined = undefined): (Error | undefined) {
         if (level <= 0)
             level = 1
 
         for (let index = 0, ct = data.length, temp: ifc.IMindNode, err: ifc.Result; index < ct; index++) {
             temp = data[index]
-            err = this.RenderOneNodeLine(temp, level, rerender)
+            err = this.RenderOneNodeLine(temp, level, rerender, parentnode)
             if (err) {
                 return err
             }
@@ -75,9 +79,17 @@ export class DefaultLinePaiting {
      * 将一个根节点下的所有子节点画上连线。
      * @param nodedata 根节点数据
      * @param level 节点层级，用于区分使用什么连线连接。
+     * @param rerender 可选参数，是否重绘。
+     * @param parentnode 可选参数，表示nodedata的父级节点，如果有，则会查找此父级节点，如果找到，会将nodedata节点与此父级节点相连。此参数意味着同时绘制上级和下级连接线。
      * @returns 异常信息
      */
-    private RenderOneNodeLine(nodedata: ifc.IMindNode, level: number, rerender: boolean = false): (Error | undefined) {
+    public RenderOneNodeLine(nodedata: ifc.IMindNode, level: number, rerender: boolean = false, parentnode: ifc.IMindNode | undefined = undefined): (Error | undefined) {
+        if (parentnode) {
+            const rerr = this.RenderTwoNodeLine(parentnode, nodedata, level - 1, rerender)
+            if (rerr)
+                return rerr;
+        }
+
         if (!nodedata.Childrens) {
             return undefined
         }
@@ -89,7 +101,7 @@ export class DefaultLinePaiting {
                 return rerr;
 
             if (element.Childrens && element.Childrens.length > 0) {
-                const err = this.RenderOneNodeLine(element, level + 1, rerender) // 递归所有子节点。
+                const err = this.RenderOneNodeLine(element, level + 1, rerender, undefined) // 递归所有子节点。
                 if (err)
                     return err; // 有错误的话直接终端并返回错误
             }
@@ -268,6 +280,30 @@ export class DefaultLinePaiting {
      */
     GetLineIDbetweenTwoNode(first: ifc.IMindNode, second: ifc.IMindNode): string {
         return `${this.lineidPrefix}_${first.Id}_${second.Id}`
+    }
+
+
+    /**
+     * 根据两个数据节点ID，删除他们的连线。
+     * @param firstid 第一个数据节点ID
+     * @param secondid 第二个数据节点ID
+     */
+    public DeleteLineByTwoNodeId(firstid: string, secondid: string) {
+        this.DeleteLineByLineID(`${this.lineidPrefix}_${firstid}_${secondid}`)
+    }
+
+    /**
+     * 根据连线ID，将其连线Path删除。
+     * @param lineid 连线ID
+     */
+    public DeleteLineByLineID(lineid: string) {
+        if (!this.linegroupnode)
+            return
+        const linepathnode = this.linegroupnode.querySelector(`#${lineid}`)
+        if (!linepathnode)
+            return
+
+        this.linegroupnode.removeChild(linepathnode)
     }
 }
 

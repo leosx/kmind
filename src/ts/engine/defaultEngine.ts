@@ -63,7 +63,7 @@ export class DefaultEngine implements ifc.IEngine {
     private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
     private zindexstartvalue: number;
     private linHleper: DefaultLinePaiting // 画连接线的帮助类，负责连接节点。
-    private movingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
+    private movingData: ifc.IMindNode | undefined // 正在被移动的节点。通常是一个节点的内容部分。
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.uid = `k${uuid().slice(3, 8)}`
@@ -131,7 +131,7 @@ export class DefaultEngine implements ifc.IEngine {
             }
         });
         this.svgRoot.addEventListener("mousemove", this.MoveCanvas.bind(this));
-        this.svgRoot.addEventListener("mouseup", (e: MouseEvent) => {
+        this.svgRoot.addEventListener("mouseup", async (e: MouseEvent) => {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
@@ -139,10 +139,10 @@ export class DefaultEngine implements ifc.IEngine {
             this.roottraslatexy.Y = 0
 
             // 还需要考虑当移动第二级节点时，从第一级节点的左边移动到右边、或者从第一级节点右边移动到左边，此时需要交换此被移动中的二级节点在第一级节点中的布局位置。为了避免实时交换位置可能引起的性能问题或者卡顿问题，应该在移动停止后进行交换位置并且重绘此二级节点与第一级节点的位置关系级连线关系。
-            if (this.movingDataParent) {
-                this.checkSecondLevelNodeSide()
+            if (this.movingData && this.mouseleftbtndownelementNode) {
+                await this.checkSecondLevelNodeSide()
             }
-            this.movingDataParent = undefined
+            this.movingData = undefined
         });
         this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
         this.svgRoot.appendChild(this.grouproot)
@@ -159,8 +159,121 @@ export class DefaultEngine implements ifc.IEngine {
     /**
      * 检查二级节点和一级节点位置关系，用于处理二级节点从一级节点左边拖拽到右边、或者从右边拖拽到左边时，方向变化后，需要移动二级节点所在位置级连线关系位置信息。
      */
-    private checkSecondLevelNodeSide() {
+    private async checkSecondLevelNodeSide() {
+        if (!this.movingData)
+            return
+        // 如果父级节点不是根节点（第一级），则不需要继续判断了。
+        if (this.movingData?.ParentId && this.movingData.ParentId != "0")
+            return
 
+        let parentnodeid = `${this.NodeContentZonePrefix}${this.movingData!.ParentId}` // 父级节点ID。
+        if (this.mouseleftbtndownelementNode?.id == parentnodeid)
+            return
+
+        const parentCTNode = this.svgRoot?.querySelector(`#${parentnodeid}`) // 父级节点的内容节点
+        if (!parentCTNode)
+            return
+
+        // 判断当前子节点在父节点中的位置和原来是否一致。
+        const subnode = this.svgRoot?.querySelector(`#${this.mouseleftbtndownelementNode?.id}`)
+        if (!subnode)
+            return
+
+        // 获取子节点的IMindNode.Id，根据ID获取数据IMindNode，再获取到此节点的方向信息。
+        const temparrary = this.mouseleftbtndownelementNode?.id.split("_")
+        if (!temparrary || temparrary.length <= 0)
+            return
+
+        const subnodeRect = subnode.getBoundingClientRect()
+        const parentCTRect = parentCTNode.getBoundingClientRect()
+        // 比较位置关系，看是否左右交换了
+
+        const ctcenterx = parentCTRect.left + (parentCTRect.width / 2)
+        const ctcentery = parentCTRect.top + (parentCTRect.height / 2)
+        let newdirection: string = ""
+        let newcontainerid: string = ""
+        if (this.movingData.direction == "left") {
+            if (subnodeRect.x > ctcenterx) {
+                newdirection = "right"
+                newcontainerid = `${this.NodeRightZonePrefix}${this.movingData?.Id}`
+            } else {
+                return
+            }
+        } else if (this.movingData.direction == "right") {
+            if (subnodeRect.x + subnodeRect.width < ctcenterx) {
+                newdirection = "left"
+                newcontainerid = `${this.NodeLeftZonePrefix}${this.movingData?.Id}`
+            } else {
+                return
+            }
+        } else {
+            return
+        }
+
+        // 获取此节点原来是属于第几级的节点。
+        const subnodegroupid = `#${this.NodeRootPrefix}${this.movingData.Id}`
+        const nodegroup = this.svgRoot?.querySelector(subnodegroupid)
+        if (!nodegroup)
+            return
+        const level = (nodegroup as HTMLElement).dataset.level;
+        if (!level)
+            return
+
+        const levelnumber = parseInt(level)
+        // 根据新方向，重新布局及绘制连接线。
+        // 删掉原来的节点，重绘整个子节点及下属所有节点，此方式最简单，但是效率不高。
+        this.deleteNodeByNodeId(this.movingData.Id.toString())
+
+        // 找到新方向的容器节点。
+        const newcontainer = this.svgRoot?.querySelector(`#${newcontainerid}`)
+        if (!newcontainer)
+            return
+
+        await this.RenderSingleNode(levelnumber, newcontainer, this.movingData) // 重绘某个节点。
+        // 再重新绘制此节点的连线信息。
+    }
+
+    /**
+     * 从父级节点中将指定的子节点及其子节点下的所有子节点删掉。
+     * @param nodeid 待删除的节点的ID
+     */
+    private deleteNodeByNodeId(nodeid: string) {
+        if (!nodeid || !this.svgRoot)
+            return
+        const queryselectorid = `#${this.NodeRootPrefix}${nodeid}`
+        const deletenode = this.svgRoot.querySelector(queryselectorid)
+        if (!deletenode)
+            return
+
+        if (!deletenode.parentNode)
+            return
+
+        deletenode.parentNode.removeChild(deletenode)
+        // 再删掉此节点下的所有连接线。
+        const nodedatainfo = this.GetNodeDataByNodeId(nodeid)
+        if (!nodedatainfo)
+            return
+
+        this.delteAllLinesByNode(nodedatainfo)
+    }
+
+    /**
+     * 根据节点数据信息删除此节点下的所有子节点的连线信息。
+     * @param nodeinfo 节点数据信息
+     */
+    private delteAllLinesByNode(nodeinfo: ifc.IMindNode) {
+        // 先删除此节点和父节点之间的连线。
+        if (!nodeinfo.ParentId || nodeinfo.ParentId == "0")
+            return
+
+        this.linHleper.DeleteLineByTwoNodeId(nodeinfo.ParentId.toString(), nodeinfo.Id.toString())
+        if (!nodeinfo.Childrens)
+            return
+
+        for (let index = 0; index < nodeinfo.Childrens.length; index++) {
+            const ele = nodeinfo.Childrens[index]
+            this.delteAllLinesByNode(ele)
+        }
     }
 
     SvgMouseEntryHandler(e: MouseEvent) {
@@ -336,14 +449,14 @@ export class DefaultEngine implements ifc.IEngine {
                 }
             }
         });
-        (contentg as HTMLElement).addEventListener("mouseup", (e) => {
+        (contentg as HTMLElement).addEventListener("mouseup", async (e) => {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
-            if (this.movingDataParent) {
-                this.checkSecondLevelNodeSide()
+            if (this.movingData && this.mouseleftbtndownelementNode) {
+                await this.checkSecondLevelNodeSide()
             }
-            this.movingDataParent = undefined
+            this.movingData = undefined
             this.mouseleftbtndownelement = null
             this.mouseleftbtndownelementNode = null
         });
@@ -387,34 +500,35 @@ export class DefaultEngine implements ifc.IEngine {
         if (htmlele && htmlele.id) {
             let dataid = htmlele.id.replace(this.NodeRootPrefix, "")
 
-            let tempParent = undefined
+            let temp = undefined
             // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
-            if (this.movingDataParent) {
-                tempParent = this.movingDataParent
+            if (this.movingData) {
+                temp = this.movingData
             } else {
                 // 找到此节点对应的数据。
-                const tempNode = this.GetNodeDataByNodeId(dataid)
-                if (!tempNode) {
+                temp = this.GetNodeDataByNodeId(dataid)
+                if (!temp) {
                     return
                 }
 
-                // 如果此节点本身就是根节点了，那么无须再往上那个找父级节点，此节点就是根节点了。
-                if (!tempNode.ParentId || tempNode.ParentId.toString() == "0") {
-                    tempParent = tempNode
-                } else {
-                    // 找到此节点的父级。
-                    tempParent = this.GetNodeDataByNodeId(tempNode.ParentId)
-                    if (!tempParent) {
-                        return
-                    }
+                this.movingData = temp
+            }
+
+            let tempparent = undefined
+            // 如果此节点本身就是根节点了，那么无须再往上那个找父级节点，此节点就是根节点了。
+            if (temp.ParentId && temp.ParentId.toString() != "0") {
+                // 找到此节点的父级。
+                tempparent = this.GetNodeDataByNodeId(temp.ParentId)
+                if (!tempparent) {
+                    return
                 }
-                this.movingDataParent = tempParent
             }
 
             let datalevel = htmlele.dataset.level;
             if (!datalevel)
                 return
-            const err = this.linHleper.RenderLines([tempParent], parseInt(datalevel) - 1, true)
+
+            const err = this.linHleper.RenderOneNodeLine(temp, parseInt(datalevel), true, tempparent)
             if (err) {
                 console.log(err)
                 return
