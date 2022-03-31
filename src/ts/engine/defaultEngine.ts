@@ -83,8 +83,8 @@ export class DefaultEngine implements ifc.IEngine {
         this.NodeContentZonePrefix = `${this.uid}_ndcontentg_`
         this.NodeRightZonePrefix = `${this.uid}_ndrightg_`
 
-        this.CheckZones()
         this.linHleper = new DefaultLinePaiting(svgRoot, this.NodeContentZonePrefix, this.uid);
+        this.CheckZones()
     }
 
     /**
