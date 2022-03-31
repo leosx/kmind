@@ -54,7 +54,7 @@ export class DefaultLinePaiting {
     RenderLines(data: ifc.IMindNode[], level: number = 1, rerender: boolean = false): (Error | undefined) {
         if (level <= 0)
             level = 1
-            
+
         for (let index = 0, ct = data.length, temp: ifc.IMindNode, err: ifc.Result; index < ct; index++) {
             temp = data[index]
             err = this.RenderOneNodeLine(temp, level, rerender)
@@ -144,7 +144,7 @@ export class DefaultLinePaiting {
         secondnodepositin.Y = secondbd.top - this.rootsvgposition.Y + (secondbd.height / 2)
 
         let dData: string = ""
-        
+
 
         // 判断两个点之间是否时水平，也就是y值一致，是的话直接直线连接。
         if (firstnodecenter.Y == secondnodepositin.Y) {
@@ -233,7 +233,7 @@ export class DefaultLinePaiting {
         }
 
         if (rerender && testline) {
-            testline.setAttribute("d", dData)
+            testline.setAttribute("d", dData) // 修改路径数据，还需要重绘折叠按钮。折叠按钮只有二级和三级连接的时候才有，一级和二级之间没有折叠按钮。
             return undefined
         }
 
@@ -244,6 +244,11 @@ export class DefaultLinePaiting {
         pathnode.setAttribute("stroke-width", this.LineStrokeWidth)
         if (!second.Childrens || second.Childrens.length < 1) {
             pathnode.setAttribute("marker-end", "url(#km_marker_node)")
+        } else {
+            // 有子节点，绘制折叠按钮。折叠按钮只有二级和三级连接的时候才有，一级和二级之间没有折叠按钮。
+            if (level >= 2) {
+                
+            }
         }
 
         if (dData) {
