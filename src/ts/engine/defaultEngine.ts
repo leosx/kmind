@@ -63,7 +63,7 @@ export class DefaultEngine implements ifc.IEngine {
     private mouseleftbtndownelementNode: HTMLElement | null; // 用于记录鼠标左键按下时，出发的元素元素的父级思维导图节点是哪个。
     private zindexstartvalue: number;
     private linHleper: DefaultLinePaiting // 画连接线的帮助类，负责连接节点。
-    private mobingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
+    private movingDataParent: ifc.IMindNode | undefined // 正在被移动的节点的父级节点。和上一个属性共同用于缓存被移动的节点的数据。
 
     constructor(root: Element, svgRoot: SVGSVGElement, options: ifc.IMindOption) {
         this.uid = `k${uuid().slice(3, 8)}`
@@ -137,7 +137,12 @@ export class DefaultEngine implements ifc.IEngine {
             this.mousedownxy.Y = -1
             this.roottraslatexy.X = 0
             this.roottraslatexy.Y = 0
-            this.mobingDataParent = undefined
+
+            // 还需要考虑当移动第二级节点时，从第一级节点的左边移动到右边、或者从第一级节点右边移动到左边，此时需要交换此被移动中的二级节点在第一级节点中的布局位置。为了避免实时交换位置可能引起的性能问题或者卡顿问题，应该在移动停止后进行交换位置并且重绘此二级节点与第一级节点的位置关系级连线关系。
+            if (this.movingDataParent) {
+                this.checkSecondLevelNodeSide()
+            }
+            this.movingDataParent = undefined
         });
         this.svgRoot.addEventListener("mouseenter", this.SvgMouseEntryHandler.bind(this));
         this.svgRoot.appendChild(this.grouproot)
@@ -149,6 +154,13 @@ export class DefaultEngine implements ifc.IEngine {
         this.renderg = document.createElementNS(this.svgnamespace, "g")
         this.renderg.setAttribute("id", `${this.uid}_render`)
         this.grouproot.appendChild(this.renderg)
+    }
+
+    /**
+     * 检查二级节点和一级节点位置关系，用于处理二级节点从一级节点左边拖拽到右边、或者从右边拖拽到左边时，方向变化后，需要移动二级节点所在位置级连线关系位置信息。
+     */
+    private checkSecondLevelNodeSide() {
+
     }
 
     SvgMouseEntryHandler(e: MouseEvent) {
@@ -328,7 +340,10 @@ export class DefaultEngine implements ifc.IEngine {
             this.buttondown = -1
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
-            this.mobingDataParent = undefined
+            if (this.movingDataParent) {
+                this.checkSecondLevelNodeSide()
+            }
+            this.movingDataParent = undefined
             this.mouseleftbtndownelement = null
             this.mouseleftbtndownelementNode = null
         });
@@ -374,8 +389,8 @@ export class DefaultEngine implements ifc.IEngine {
 
             let tempParent = undefined
             // 应该缓存数据，当移动的节点和其父级节点没有变化时，直接使用缓存数据，否则每次都去查找一遍，性能太差。
-            if (this.mobingDataParent) {
-                tempParent = this.mobingDataParent
+            if (this.movingDataParent) {
+                tempParent = this.movingDataParent
             } else {
                 // 找到此节点对应的数据。
                 const tempNode = this.GetNodeDataByNodeId(dataid)
@@ -393,6 +408,7 @@ export class DefaultEngine implements ifc.IEngine {
                         return
                     }
                 }
+                this.movingDataParent = tempParent
             }
 
             let datalevel = htmlele.dataset.level;
