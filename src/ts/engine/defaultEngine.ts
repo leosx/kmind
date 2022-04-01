@@ -140,7 +140,7 @@ export class DefaultEngine implements ifc.IEngine {
 
             // 还需要考虑当移动第二级节点时，从第一级节点的左边移动到右边、或者从第一级节点右边移动到左边，此时需要交换此被移动中的二级节点在第一级节点中的布局位置。为了避免实时交换位置可能引起的性能问题或者卡顿问题，应该在移动停止后进行交换位置并且重绘此二级节点与第一级节点的位置关系级连线关系。
             if (this.movingData && this.mouseleftbtndownelementNode) {
-                await this.checkSecondLevelNodeSide()
+                await this.checkSecondLevelNodeSide(e)
             }
             this.movingData = undefined
         });
@@ -159,50 +159,57 @@ export class DefaultEngine implements ifc.IEngine {
     /**
      * 检查二级节点和一级节点位置关系，用于处理二级节点从一级节点左边拖拽到右边、或者从右边拖拽到左边时，方向变化后，需要移动二级节点所在位置级连线关系位置信息。
      */
-    private async checkSecondLevelNodeSide() {
-        if (!this.movingData)
+    private async checkSecondLevelNodeSide(e: MouseEvent) {
+        if (!this.movingData || !this.svgRoot)
             return
-        // 如果父级节点不是根节点（第一级），则不需要继续判断了。
-        if (this.movingData?.ParentId && this.movingData.ParentId != "0")
+
+        // 获取此节点原来是属于第几级的节点。
+        const subnodegroupid = `#${this.NodeRootPrefix}${this.movingData.Id}`
+        let nodegroup = this.svgRoot.querySelector(subnodegroupid)
+        if (!nodegroup)
+            return
+
+        // 如果节点不是二级节点，则不需要继续判断了。
+        const level = (nodegroup as HTMLElement).dataset.level;
+        if (!level)
+            return
+
+        const levelnumber = parseInt(level)
+        if (levelnumber != 2)
             return
 
         let parentnodeid = `${this.NodeContentZonePrefix}${this.movingData!.ParentId}` // 父级节点ID。
         if (this.mouseleftbtndownelementNode?.id == parentnodeid)
             return
 
-        const parentCTNode = this.svgRoot?.querySelector(`#${parentnodeid}`) // 父级节点的内容节点
+        const parentCTNode = this.svgRoot.querySelector(`#${parentnodeid}`) // 父级节点的内容节点
         if (!parentCTNode)
             return
 
+        // 先记录删除节点前，鼠标将其移动到的位置信息。
         // 判断当前子节点在父节点中的位置和原来是否一致。
-        const subnode = this.svgRoot?.querySelector(`#${this.mouseleftbtndownelementNode?.id}`)
-        if (!subnode)
+        const subnodeCT = this.svgRoot.querySelector(`#${this.NodeContentZonePrefix}${this.movingData.Id}`)
+        if (!subnodeCT)
             return
 
-        // 获取子节点的IMindNode.Id，根据ID获取数据IMindNode，再获取到此节点的方向信息。
-        const temparrary = this.mouseleftbtndownelementNode?.id.split("_")
-        if (!temparrary || temparrary.length <= 0)
-            return
-
-        const subnodeRect = subnode.getBoundingClientRect()
+        const subnodeRect = subnodeCT.getBoundingClientRect()
         const parentCTRect = parentCTNode.getBoundingClientRect()
         // 比较位置关系，看是否左右交换了
 
         const ctcenterx = parentCTRect.left + (parentCTRect.width / 2)
-        const ctcentery = parentCTRect.top + (parentCTRect.height / 2)
         let newdirection: string = ""
         let newcontainerid: string = ""
         if (this.movingData.direction == "left") {
             if (subnodeRect.x > ctcenterx) {
                 newdirection = "right"
-                newcontainerid = `${this.NodeRightZonePrefix}${this.movingData?.Id}`
+                newcontainerid = `${this.NodeRightZonePrefix}${this.movingData.ParentId}`
             } else {
                 return
             }
         } else if (this.movingData.direction == "right") {
-            if (subnodeRect.x + subnodeRect.width < ctcenterx) {
+            if (subnodeRect.x < ctcenterx) {
                 newdirection = "left"
-                newcontainerid = `${this.NodeLeftZonePrefix}${this.movingData?.Id}`
+                newcontainerid = `${this.NodeLeftZonePrefix}${this.movingData?.ParentId}`
             } else {
                 return
             }
@@ -210,27 +217,61 @@ export class DefaultEngine implements ifc.IEngine {
             return
         }
 
-        // 获取此节点原来是属于第几级的节点。
-        const subnodegroupid = `#${this.NodeRootPrefix}${this.movingData.Id}`
-        const nodegroup = this.svgRoot?.querySelector(subnodegroupid)
-        if (!nodegroup)
-            return
-        const level = (nodegroup as HTMLElement).dataset.level;
-        if (!level)
-            return
+        // 被移动节点的内容区域在被删除前所占的位置信息。（表示移动后，内容节点应该所在的位置信息。）
+        const oldnodectRect = subnodeCT.getBoundingClientRect()
 
-        const levelnumber = parseInt(level)
         // 根据新方向，重新布局及绘制连接线。
         // 删掉原来的节点，重绘整个子节点及下属所有节点，此方式最简单，但是效率不高。
         this.deleteNodeByNodeId(this.movingData.Id.toString())
 
         // 找到新方向的容器节点。
-        const newcontainer = this.svgRoot?.querySelector(`#${newcontainerid}`)
+        const newcontainer = this.svgRoot.querySelector(`#${newcontainerid}`)
         if (!newcontainer)
             return
 
+        const parentdatainfo = this.GetNodeDataByNodeId(this.movingData.ParentId)
+        if (!parentdatainfo)
+            return
+
+        this.movingData.direction = newdirection
         await this.RenderSingleNode(levelnumber, newcontainer, this.movingData) // 重绘某个节点。
+        // 重绘后，新加入的节点默认在最下方，且位置不是鼠标松开手时想要到达的地方，所以还得平移此节点到鼠标松开时，用户想要去的地方。
+        // 思路：获取鼠标松开时，内容节点坐标位置；重绘后，将节点平移到此位置上去。
+        // 1、计算被拖拽节点内容体的DOMRect信息
+        // 2、在新容器中重绘出此节点
+        // 3、获取新绘制出的节点的文本节点的DomRect信息
+        // 4、计算出新节点整体位置DomRect
+        // 5、根据新绘制的文本节点的DomRect和整体DomRect以及偏移量，计算出新绘制的节点整体需要偏移多少。  使用DomRect.x、DomRect.y计算时，需要减去SVG整体偏移量后才是相对偏移量。
+        nodegroup = this.svgRoot.querySelector(subnodegroupid)
+        if (!nodegroup)
+            return
+        const newsubnodeGroupRect = nodegroup.getBoundingClientRect()
+        // 获取新渲染的文本节点
+        const newsubnodeCT = this.svgRoot.querySelector(`#${this.NodeContentZonePrefix}${this.movingData.Id}`)
+        if (!newsubnodeCT)
+            return
+        const newctRect = newsubnodeCT.getBoundingClientRect()
+        let relativeX = oldnodectRect.x - newctRect.x
+        let relativeY = oldnodectRect.y - newctRect.y
+
+        let contentandrootoffsetx = newsubnodeGroupRect.x - newctRect.x
+        let contentandrootoffsety = newsubnodeGroupRect.y - newctRect.y
+
+        relativeX += contentandrootoffsetx
+        relativeY += contentandrootoffsety
+
+        let newsubnoeCtTranslate = this.GetElementTranslate(newsubnodeCT)
+        if (!newsubnoeCtTranslate) {
+            newsubnoeCtTranslate = { X: 0, Y: 0 }
+        }
+
+        relativeX += newsubnoeCtTranslate.X
+        relativeY += newsubnoeCtTranslate.Y
+
+        nodegroup.setAttribute("transform", `translate( ${relativeX} ${relativeY} )`)
+
         // 再重新绘制此节点的连线信息。
+        this.linHleper.RenderOneNodeLine(this.movingData!, levelnumber, false, parentdatainfo)
     }
 
     /**
@@ -454,7 +495,7 @@ export class DefaultEngine implements ifc.IEngine {
             this.mousedownxy.X = -1
             this.mousedownxy.Y = -1
             if (this.movingData && this.mouseleftbtndownelementNode) {
-                await this.checkSecondLevelNodeSide()
+                await this.checkSecondLevelNodeSide(e)
             }
             this.movingData = undefined
             this.mouseleftbtndownelement = null
