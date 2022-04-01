@@ -42,10 +42,10 @@ export class DefaultEngine implements ifc.IEngine {
     private NodeRightZonePrefix: string
 
     // 默认连线X轴距离
-    private DefaultLineWidth: number = 100
+    private DefaultLineWidth: number = 35
 
     // 默认同区域两项节点的高度距离
-    private DefaultLineHeight: number = 30
+    private DefaultLineHeight: number = 20
 
     private uid: string
     private rootElement: Element | undefined // 容器根元素
@@ -384,7 +384,7 @@ export class DefaultEngine implements ifc.IEngine {
         gp.appendChild(rightg)
         container.appendChild(gp)
         // 绘制文本
-        await this.CreateNodeText(contentg, nodedata, (level == 1 ? this.FirstLevelColor : this.SecondLevelColor), this.StorkeColor, (level == 1 ? 40 : 30), 10);
+        await this.CreateNodeText(contentg, nodedata, (level == 1 ? this.FirstLevelColor : this.SecondLevelColor), this.StorkeColor, (level == 1 ? 35 : 25), 8);
 
         if (nodedata.Childrens && nodedata.Childrens.length > 0) {
             for (let index: number = 0, ct: number = nodedata.Childrens.length, subnode: ifc.IMindNode; index < ct; index++) {
